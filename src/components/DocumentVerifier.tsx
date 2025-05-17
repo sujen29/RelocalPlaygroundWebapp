@@ -17,17 +17,25 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DescriptionIcon from '@mui/icons-material/Description';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import WarningIcon from '@mui/icons-material/Warning';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 interface VerificationResult {
   success: boolean;
   file_type: string;
   page_count: number;
+  is_valid?: boolean;
+  validity_reason?: string | Record<string, any>;
+  prompt?: string;
   ai_response: {
     document_type: string;
     document_lang: string;
     has_english_translation: boolean | null;
     applicant_name: string;
     document_details: Record<string, any>;
+    is_valid?: boolean;
+    validity_reason?: string | Record<string, any>;
+
   };
 }
 
@@ -41,6 +49,56 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showRawJson, setShowRawJson] = useState<boolean>(false);
+  const [showPromptData, setShowPromptData] = useState<boolean>(false);
+  const [rawResponse, setRawResponse] = useState<any>(null);
+  
+  // Format the prompt text with proper line breaks and formatting
+  const formatPromptText = (text: string) => {
+    if (!text) return '';
+    
+    // Split by double newlines to handle paragraphs
+    return text.split('\n\n').map((paragraph, i) => {
+      // Handle bullet points
+      if (paragraph.startsWith('- ')) {
+        return (
+          <Typography key={i} component="div" sx={{ mt: 1, ml: 2 }}>
+            • {paragraph.substring(2)}
+          </Typography>
+        );
+      }
+      // Handle headers (lines ending with :)
+      else if (paragraph.endsWith(':')) {
+        return (
+          <Typography key={i} variant="subtitle2" sx={{ mt: 2, fontWeight: 'bold' }}>
+            {paragraph}
+          </Typography>
+        );
+      }
+      // Handle code blocks (lines starting with 4 spaces or tab)
+      else if (paragraph.startsWith('    ')) {
+        return (
+          <Box key={i} component="pre" sx={{
+            fontFamily: 'monospace',
+            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+            p: 2,
+            borderRadius: 1,
+            overflowX: 'auto',
+            mt: 1,
+            mb: 1
+          }}>
+            {paragraph.trim()}
+          </Box>
+        );
+      }
+      // Regular paragraph
+      return (
+        <Typography key={i} paragraph sx={{ mt: 1, whiteSpace: 'pre-line' }}>
+          {paragraph}
+        </Typography>
+      );
+    });
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
@@ -70,11 +128,38 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
       });
       
       const result: VerificationResult = response.data;
+      setRawResponse(response.data); // Store the raw response for debugging
+      console.log('Full API Response:', {
+        rawResponse: response,
+        data: result,
+        hasValidityReason: 'validity_reason' in result || (result.ai_response && 'validity_reason' in result.ai_response),
+        keys: Object.keys(result),
+        aiResponseKeys: result.ai_response ? Object.keys(result.ai_response) : []
+      });
+      
+      // If we have data but success is false, we'll still show the data but with a warning
+      const shouldShowSuccess = result.success || 
+                             (result.ai_response && Object.keys(result.ai_response).length > 0);
+      
+      if (!shouldShowSuccess) {
+        throw new Error('No valid data received from the server');
+      }
+      
+      // If we get here, we have data to show
       setVerificationResult(result);
       
       if (onStatusUpdate) {
         const docType = result.ai_response?.document_type || 'document';
-        onStatusUpdate(`Successfully processed ${docType} for ${result.ai_response?.applicant_name || 'applicant'}`);
+        const statusMessage = result.success 
+          ? `Successfully processed ${docType} for ${result.ai_response?.applicant_name || 'applicant'}`
+          : `Warning: Document is not valid (${docType})`;
+        
+        // Include the full prompt JSON in the status message for debugging
+        const promptInfo = result.ai_response?.prompt ? 
+          `\n\nPrompt JSON:\n${JSON.stringify(result.prompt, null, 2)}` : 
+          '';
+          
+        onStatusUpdate(statusMessage + promptInfo);
       }
       
     } catch (err: any) {
@@ -117,13 +202,29 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
     return (
       <Box sx={{ mt: 3 }}>
         <Alert
-          severity={verificationResult.success ? 'success' : 'error'}
+          severity={verificationResult.success ? 'success' : 'warning'}
           icon={verificationResult.success ? <VerifiedIcon /> : <WarningIcon />}
           sx={{ mb: 3 }}
         >
-          <Typography variant="subtitle1" fontWeight="medium">
-            {verificationResult.success ? 'Document processed successfully' : 'Error processing document'}
-          </Typography>
+          <Box>
+            <Typography variant="subtitle1" fontWeight="medium">
+              {verificationResult.success 
+                ? 'Valid Document' 
+                : verificationResult.ai_response 
+                  ? 'Document is not valid' 
+                  : 'Error processing document'}
+            </Typography>
+            {(verificationResult.validity_reason || verificationResult.ai_response?.validity_reason) && (
+              <Box sx={{ mt: 1, fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
+                {JSON.stringify(
+                  verificationResult.validity_reason || 
+                  verificationResult.ai_response?.validity_reason, 
+                  null, 
+                  2
+                )}
+              </Box>
+            )}
+          </Box>
         </Alert>
 
         <Card variant="outlined" sx={{ mb: 3 }}>
@@ -173,6 +274,15 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
                   {verificationResult.page_count || 'N/A'}
                 </Typography>
               </Box>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Document Valid:
+                </Typography>
+                <Typography variant="body1">
+                  {verificationResult.ai_response?.is_valid !== undefined ? 
+                    (verificationResult.ai_response.is_valid ? 'Yes' : 'No') : 'N/A'}
+                </Typography>
+              </Box>
             </Box>
           </CardContent>
         </Card>
@@ -185,17 +295,209 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
               </Typography>
               <Divider sx={{ mb: 2 }} />
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                {Object.entries(verificationResult.ai_response.document_details).map(([key, value]) => (
-                  <Box key={key}>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      {key.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}:
-                    </Typography>
-                    <Typography variant="body1">
-                      {value === null || value === undefined ? 'N/A' : String(value)}
-                    </Typography>
-                  </Box>
-                ))}
+                {Object.entries(verificationResult.ai_response.document_details).map(([key, value]) => {
+                  // Handle nested objects by converting them to JSON strings
+                  const displayValue = (() => {
+                    if (value === null || value === undefined) return 'N/A';
+                    if (typeof value === 'object' && value !== null) {
+                      try {
+                        // If it's an object with a message property, show that
+                        if ('message' in value) return value.message;
+                        // Otherwise, stringify the object with proper formatting
+                        return JSON.stringify(value, null, 2);
+                      } catch (e) {
+                        return 'Invalid data';
+                      }
+                    }
+                    return String(value);
+                  })();
+
+                  return (
+                    <Box key={key}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        {key.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}:
+                      </Typography>
+                      <Typography 
+                        variant="body1" 
+                        sx={{
+                          whiteSpace: 'pre-wrap',
+                          fontFamily: typeof displayValue === 'string' && 
+                                     (displayValue.includes('{') || displayValue.includes('[')) 
+                                    ? 'monospace' 
+                                    : 'inherit',
+                          fontSize: typeof displayValue === 'string' && 
+                                   displayValue.length > 100 
+                                 ? '0.8rem' 
+                                 : 'inherit'
+                        }}
+                      >
+                        {displayValue}
+                      </Typography>
+                    </Box>
+                  );
+                })}
               </Box>
+            </CardContent>
+          </Card>
+        )}
+        
+        {verificationResult?.prompt && (
+          <Card variant="outlined" sx={{ mt: 3 }}>
+            <CardContent>
+              <Box 
+                onClick={() => setShowPromptData(!showPromptData)}
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  cursor: 'pointer',
+                  '&:hover': { color: 'primary.main' },
+                  mb: showPromptData ? 2 : 0
+                }}
+              >
+                {showPromptData ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                <Typography variant="h6" ml={1}>
+                  Prompt
+                </Typography>
+              </Box>
+              {showPromptData && (
+                <Box 
+                  sx={{ 
+                    p: 2, 
+                    bgcolor: 'background.paper', 
+                    borderRadius: 1,
+                    maxHeight: '500px',
+                    overflow: 'auto',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    '& pre': {
+                      fontFamily: 'monospace',
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                      p: 2,
+                      borderRadius: 1,
+                      overflowX: 'auto',
+                      mt: 1,
+                      mb: 1,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word'
+                    },
+                    '& code': {
+                      fontFamily: 'monospace',
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                      p: 0.5,
+                      borderRadius: 0.5,
+                      fontSize: '0.9em',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word'
+                    },
+                    '& h4': {
+                      mt: 3,
+                      mb: 1,
+                      color: 'primary.main',
+                      fontWeight: 'bold',
+                      fontSize: '1.1em'
+                    },
+                    '& ul': {
+                      pl: 3,
+                      mb: 2
+                    },
+                    '& li': {
+                      mb: 1
+                    }
+                  }}
+                >
+                  <Box sx={{
+                    '& p': {
+                      margin: '0.5em 0',
+                      lineHeight: 1.6
+                    },
+                    '& pre': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                      padding: '0.5em',
+                      borderRadius: '4px',
+                      overflowX: 'auto',
+                      margin: '0.5em 0'
+                    },
+                    '& code': {
+                      fontFamily: 'monospace',
+                      fontSize: '0.9em',
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                      padding: '0.2em 0.4em',
+                      borderRadius: '3px'
+                    },
+                    '& h4': {
+                      margin: '1em 0 0.5em 0',
+                      fontWeight: 600
+                    },
+                    '& ul, & ol': {
+                      margin: '0.5em 0',
+                      paddingLeft: '1.5em'
+                    },
+                    '& li': {
+                      margin: '0.25em 0'
+                    },
+                    '& strong': {
+                      fontWeight: 600
+                    },
+                    '& em': {
+                      fontStyle: 'italic'
+                    }
+                  }}>
+                    {formatPromptText(typeof verificationResult.prompt === 'string' 
+                      ? verificationResult.prompt 
+                      : JSON.stringify(verificationResult.prompt, null, 2))}
+                  </Box>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {verificationResult && (
+          <Card variant="outlined" sx={{ mt: 3 }}>
+            <CardContent>
+              <Box 
+                onClick={() => setShowRawJson(!showRawJson)}
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  cursor: 'pointer',
+                  '&:hover': { color: 'primary.main' }
+                }}
+              >
+                {showRawJson ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                <Typography variant="h6" ml={1}>
+                  Raw JSON Response (Debug)
+                </Typography>
+              </Box>
+              {showRawJson && (
+                <Box 
+                  sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    bgcolor: 'background.paper', 
+                    borderRadius: 1,
+                    maxHeight: '400px',
+                    overflow: 'auto',
+                    fontFamily: 'monospace',
+                    fontSize: '0.8rem',
+                    whiteSpace: 'pre-wrap',
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}
+                >
+                  {JSON.stringify(
+                    rawResponse?.ai_response || { error: 'No AI response data available' },
+                    (key, value) => {
+                      // Handle circular references
+                      if (value instanceof File) return '[File]';
+                      if (value instanceof Blob) return '[Blob]';
+                      if (value === '') return '(empty string)';
+                      return value;
+                    },
+                    2
+                  )}
+                </Box>
+              )}
             </CardContent>
           </Card>
         )}

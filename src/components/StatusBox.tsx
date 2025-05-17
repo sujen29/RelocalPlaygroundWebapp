@@ -50,27 +50,6 @@ const StatusBox: React.FC<StatusBoxProps> = ({ apiEndpoint }) => {
     setMessages([]);
   };
 
-  // Simulate checking backend status (replace with actual API call)
-  useEffect(() => {
-    const checkBackendStatus = async () => {
-      try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setStatus('connected');
-        addStatusMessage('Connected to backend service', 'success');
-      } catch (error) {
-        setStatus('disconnected');
-        addStatusMessage('Failed to connect to backend', 'error');
-      }
-    };
-
-    checkBackendStatus();
-    // Check status every 30 seconds
-    const interval = setInterval(checkBackendStatus, 30000);
-    
-    return () => clearInterval(interval);
-  }, [addStatusMessage]);
-
   // Get icon based on message type
   const getStatusIcon = (type: StatusMessage['type']) => {
     switch (type) {
@@ -86,16 +65,7 @@ const StatusBox: React.FC<StatusBoxProps> = ({ apiEndpoint }) => {
   };
 
   // Get color based on status
-  const getStatusColor = () => {
-    switch (status) {
-      case 'connected':
-        return 'success.main';
-      case 'disconnected':
-        return 'error.main';
-      default:
-        return 'text.secondary';
-    }
-  };
+  const getStatusColor = () => 'text.secondary';
 
   return (
     <Box
