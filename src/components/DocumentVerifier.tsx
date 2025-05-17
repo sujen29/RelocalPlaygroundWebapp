@@ -1,130 +1,259 @@
-import React, { useState } from 'react';
-import { 
-  Box,
-  Button,
-  Typography,
-  Paper,
-  CircularProgress,
-  Alert,
-  useTheme
-} from '@mui/material';
+import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
+import { 
+  Box, 
+  Typography, 
+  CircularProgress, 
+  Paper,
+  Button,
+  Alert,
+  Divider,
+  Grid,
+  Card,
+  CardContent
+} from '@mui/material';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import DescriptionIcon from '@mui/icons-material/Description';
+import VerifiedIcon from '@mui/icons-material/Verified';
+import WarningIcon from '@mui/icons-material/Warning';
+
+interface VerificationResult {
+  success: boolean;
+  message: string;
+  data?: Record<string, any>;
+  prompt?: string;
+}
 
 interface DocumentVerifierProps {
   apiEndpoint: string;
+  onStatusUpdate?: (status: string) => void;
 }
 
-const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint }) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
-  const theme = useTheme();
+const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStatusUpdate }) => {
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const onDrop = (acceptedFiles: File[]) => {
-    setFile(acceptedFiles[0]);
-    setUploadError(null);
-    setUploadSuccess(null);
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+    
+    const file = acceptedFiles[0];
+    setSelectedFile(file);
+    await handleUpload(file);
+  }, [apiEndpoint, onStatusUpdate]);
+
+  const handleUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setIsUploading(true);
+    setVerificationResult(null);
+    setError(null);
+    
+    if (onStatusUpdate) {
+      onStatusUpdate('Uploading document...');
+    }
+
+    try {
+      const response = await axios.post(apiEndpoint, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      const result: VerificationResult = response.data;
+      setVerificationResult(result);
+      
+      if (onStatusUpdate) {
+        onStatusUpdate(result.prompt || 'Document processed successfully');
+      }
+      
+    } catch (err: any) {
+      console.error('Error uploading file:', err);
+      const errorMessage = err.response?.data?.message || 'An error occurred while processing your document';
+      setError(errorMessage);
+      
+      if (onStatusUpdate) {
+        onStatusUpdate(`Error: ${errorMessage}`);
+      }
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
-      'image/*': ['.png', '.jpg', '.jpeg', '.gif'],
+      'image/*': ['.jpeg', '.jpg', '.png']
     },
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024, // 10MB
+    disabled: isUploading,
   });
 
-  const handleUpload = async () => {
-    if (!file) return;
-
-    try {
-      setUploading(true);
-      setUploadError(null);
-      setUploadSuccess(null);
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await axios.post(apiEndpoint, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      setUploadSuccess('Document uploaded successfully!');
-    } catch (error) {
-      setUploadError('Failed to upload document. Please try again.');
-    } finally {
-      setUploading(false);
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    setVerificationResult(null);
+    setError(null);
+    if (onStatusUpdate) {
+      onStatusUpdate('Ready to verify documents');
     }
   };
 
+  // Render the verification results
+  const renderVerificationResults = () => {
+    if (!verificationResult) return null;
+
+    return (
+      <Box sx={{ mt: 3 }}>
+        <Alert
+          severity={verificationResult.success ? 'success' : 'error'}
+          icon={verificationResult.success ? <VerifiedIcon /> : <WarningIcon />}
+          sx={{ mb: 3 }}
+        >
+          <Typography variant="subtitle1" fontWeight="medium">
+            {verificationResult.message}
+          </Typography>
+        </Alert>
+
+        {verificationResult.data && (
+          <Card variant="outlined" sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Document Details
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              <Grid container spacing={2}>
+                {Object.entries(verificationResult.data).map(([key, value]) => (
+                  <Grid item xs={12} sm={6} key={key}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                    </Typography>
+                    <Typography variant="body1">
+                      {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
+                    </Typography>
+                  </Grid>
+                ))}
+              </Grid>
+            </CardContent>
+          </Card>
+        )}
+      </Box>
+    );
+  };
+
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ width: '100%' }}>
       <Typography variant="h4" gutterBottom>
         Immigration Document Verifier
       </Typography>
+      
+      <Typography variant="body1" color="text.secondary" paragraph>
+        Upload your immigration documents to verify their authenticity. We support PDF, JPG, and PNG files up to 10MB.
+      </Typography>
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box
+      {isUploading ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4 }}>
+          <CircularProgress size={60} thickness={4} sx={{ mb: 2 }} />
+          <Typography variant="h6" color="text.secondary">
+            Processing your document...
+          </Typography>
+        </Box>
+      ) : !selectedFile ? (
+        <Paper
           {...getRootProps()}
           sx={{
-            border: 2,
-            borderColor: 'primary.main',
-            borderRadius: 1,
-            p: 3,
+            p: 6,
+            border: '2px dashed',
+            borderColor: 'divider',
+            borderRadius: 2,
             textAlign: 'center',
             cursor: 'pointer',
-            transition: 'border-color 0.2s',
+            backgroundColor: isDragActive ? 'action.hover' : 'background.paper',
+            transition: 'all 0.2s ease-in-out',
             '&:hover': {
-              borderColor: theme.palette.primary.dark,
+              backgroundColor: 'action.hover',
+              borderColor: 'primary.main',
             },
           }}
         >
           <input {...getInputProps()} />
-          {isDragActive ? (
-            <Typography variant="h6">Drop the files here...</Typography>
-          ) : (
-            <>
-              <Typography variant="h6">Drag & drop a document here, or click to select files</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Supported formats: PDF, PNG, JPG, JPEG, GIF
-              </Typography>
-            </>
-          )}
-        </Box>
-      </Paper>
-
-      {file && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="body1">
-            Selected file: {file.name}
+          <CloudUploadIcon 
+            sx={{ 
+              fontSize: 48, 
+              mb: 2, 
+              color: isDragActive ? 'primary.main' : 'text.secondary',
+              transition: 'color 0.2s ease-in-out',
+            }} 
+          />
+          <Typography variant="h6" gutterBottom>
+            {isDragActive ? 'Drop the file here' : 'Drag and drop a file here, or click to select'}
           </Typography>
-        </Box>
-      )}
+          <Typography variant="body2" color="text.secondary">
+            Supported formats: PDF, JPG, PNG (Max 10MB)
+          </Typography>
+        </Paper>
+      ) : (
+        <Paper
+          sx={{
+            p: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 2,
+            position: 'relative',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <DescriptionIcon color="primary" sx={{ mr: 2, fontSize: 40 }} />
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="subtitle1">
+                {selectedFile.name}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {(selectedFile.size / 1024).toFixed(1)} KB • {selectedFile.type}
+              </Typography>
+            </Box>
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              onClick={handleRemoveFile}
+              disabled={isUploading}
+            >
+              Remove
+            </Button>
+          </Box>
 
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={handleUpload}
-        disabled={!file || uploading}
-        sx={{ mb: 3 }}
-      >
-        {uploading ? <CircularProgress size={24} /> : 'Upload Document'}
-      </Button>
+          <Divider sx={{ my: 2 }} />
 
-      {uploadError && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {uploadError}
-        </Alert>
-      )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
 
-      {uploadSuccess && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          {uploadSuccess}
-        </Alert>
+          {verificationResult ? (
+            renderVerificationResults()
+          ) : (
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                Document ready for verification
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => handleUpload(selectedFile)}
+                disabled={isUploading}
+                startIcon={<VerifiedIcon />}
+              >
+                Verify Document
+              </Button>
+            </Box>
+          )}
+        </Paper>
       )}
     </Box>
   );

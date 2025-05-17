@@ -1,73 +1,221 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   Paper,
   Typography,
   Box,
   CircularProgress,
   Alert,
-  useTheme
+  useTheme,
+  IconButton,
+  Tooltip,
+  Fade
 } from '@mui/material';
-import axios from 'axios';
+import CloseIcon from '@mui/icons-material/Close';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorIcon from '@mui/icons-material/Error';
+import InfoIcon from '@mui/icons-material/Info';
 
 interface StatusBoxProps {
   apiEndpoint: string;
 }
 
+interface StatusMessage {
+  id: number;
+  message: string;
+  type: 'info' | 'success' | 'error' | 'warning';
+  timestamp: Date;
+}
+
 const StatusBox: React.FC<StatusBoxProps> = ({ apiEndpoint }) => {
   const [status, setStatus] = useState<string>('Checking...');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [messages, setMessages] = useState<StatusMessage[]>([]);
+  const [isMinimized, setIsMinimized] = useState(false);
   const theme = useTheme();
+  const messageId = React.useRef(0);
 
+  // Function to add a new status message
+  const addStatusMessage = useCallback((message: string, type: StatusMessage['type'] = 'info') => {
+    const newMessage: StatusMessage = {
+      id: messageId.current++,
+      message,
+      type,
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [newMessage, ...prev].slice(0, 5)); // Keep only the 5 most recent messages
+  }, []);
+
+  // Function to clear all messages
+  const clearMessages = () => {
+    setMessages([]);
+  };
+
+  // Simulate checking backend status (replace with actual API call)
   useEffect(() => {
-    const fetchStatus = async () => {
+    const checkBackendStatus = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        const response = await axios.get(`${apiEndpoint}/status`);
-        setStatus(response.data.status || 'Unknown');
-      } catch (err) {
-        setError('Failed to fetch status');
-        setStatus('Error');
-      } finally {
-        setLoading(false);
+        // Simulate API call
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setStatus('connected');
+        addStatusMessage('Connected to backend service', 'success');
+      } catch (error) {
+        setStatus('disconnected');
+        addStatusMessage('Failed to connect to backend', 'error');
       }
     };
 
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 30000); // Update every 30 seconds
+    checkBackendStatus();
+    // Check status every 30 seconds
+    const interval = setInterval(checkBackendStatus, 30000);
+    
     return () => clearInterval(interval);
-  }, [apiEndpoint]);
+  }, [addStatusMessage]);
+
+  // Get icon based on message type
+  const getStatusIcon = (type: StatusMessage['type']) => {
+    switch (type) {
+      case 'success':
+        return <CheckCircleIcon fontSize="small" color="success" />;
+      case 'error':
+        return <ErrorIcon fontSize="small" color="error" />;
+      case 'warning':
+        return <ErrorIcon fontSize="small" color="warning" />;
+      default:
+        return <InfoIcon fontSize="small" color="info" />;
+    }
+  };
+
+  // Get color based on status
+  const getStatusColor = () => {
+    switch (status) {
+      case 'connected':
+        return 'success.main';
+      case 'disconnected':
+        return 'error.main';
+      default:
+        return 'text.secondary';
+    }
+  };
 
   return (
-    <Paper
+    <Box
       sx={{
         position: 'fixed',
         bottom: 20,
         right: 20,
-        p: 2,
+        width: 300,
+        maxHeight: isMinimized ? 40 : 300,
+        overflow: 'hidden',
+        transition: 'all 0.3s ease-in-out',
+        zIndex: 9999,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
-        backgroundColor: theme.palette.background.paper,
-        boxShadow: 2,
       }}
     >
-      <Typography variant="subtitle1" gutterBottom>
-        Backend Status
-      </Typography>
-      {loading ? (
-        <CircularProgress size={24} />
-      ) : error ? (
-        <Alert severity="error" sx={{ width: '100%' }}>
-          {error}
-        </Alert>
-      ) : (
-        <Typography variant="body1" color={status === 'healthy' ? 'success.main' : 'error.main'}>
-          {status}
-        </Typography>
-      )}
-    </Paper>
+      <Paper
+        elevation={3}
+        sx={{
+          p: 1,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          cursor: 'pointer',
+          backgroundColor: theme.palette.background.paper,
+          borderLeft: `4px solid ${theme.palette[status === 'connected' ? 'success' : 'error'].main}`,
+        }}
+        onClick={() => setIsMinimized(!isMinimized)}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          {status === 'connected' ? (
+            <CheckCircleIcon color="success" fontSize="small" sx={{ mr: 1 }} />
+          ) : (
+            <ErrorIcon color="error" fontSize="small" sx={{ mr: 1 }} />
+          )}
+          <Typography variant="subtitle2">
+            Backend: <span style={{ color: getStatusColor() }}>{status}</span>
+          </Typography>
+        </Box>
+        <Tooltip title={isMinimized ? 'Show status' : 'Hide status'}>
+          <IconButton size="small" onClick={(e) => {
+            e.stopPropagation();
+            setIsMinimized(!isMinimized);
+          }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Paper>
+
+      <Fade in={!isMinimized}>
+        <Paper
+          elevation={3}
+          sx={{
+            mt: 1,
+            p: 2,
+            overflowY: 'auto',
+            maxHeight: 250,
+            backgroundColor: theme.palette.background.default,
+          }}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              Status Messages
+            </Typography>
+            {messages.length > 0 && (
+              <Typography 
+                variant="caption" 
+                color="primary" 
+                sx={{ cursor: 'pointer' }}
+                onClick={clearMessages}
+              >
+                Clear all
+              </Typography>
+            )}
+          </Box>
+          
+          {messages.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+              No status messages
+            </Typography>
+          ) : (
+            <Box sx={{ '& > *:not(:last-child)': { mb: 1 } }}>
+              {messages.map((msg) => (
+                <Box
+                  key={msg.id}
+                  sx={{
+                    p: 1,
+                    borderRadius: 1,
+                    backgroundColor: theme.palette.background.paper,
+                    borderLeft: `3px solid ${
+                      msg.type === 'success' 
+                        ? theme.palette.success.main 
+                        : msg.type === 'error'
+                        ? theme.palette.error.main
+                        : msg.type === 'warning'
+                        ? theme.palette.warning.main
+                        : theme.palette.info.main
+                    }`,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                    <Box sx={{ mr: 1, mt: '2px' }}>
+                      {getStatusIcon(msg.type)}
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="body2">
+                        {msg.message}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {msg.timestamp.toLocaleTimeString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </Paper>
+      </Fade>
+    </Box>
   );
 };
 
