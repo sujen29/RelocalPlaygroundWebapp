@@ -1,24 +1,6 @@
-# Immigration Verification Platform
-
-A platform for verifying immigration documents and status.
-
-## Features
-
-- Document verification
-- Status tracking
-- User authentication
-
-## Setup
-
-1. Clone the repository
-2. Install dependencies
-3. Configure environment variables
-4. Run the application
-
-## Contributing
-
-Please read CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+<<<<<<< HEAD
+# ImmigrationVerificationPlatform
+Frontend for Immigration Verification for realocal, a talent startup.=======
+# ImmigrationVerificationPlatform
+Frontend for Immigration Verification for realocal, a talent startup.
+>>>>>>> 6459ea2b1f0c9955fb4d4873ef6139edbf8d582e
