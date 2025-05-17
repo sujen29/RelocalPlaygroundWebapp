@@ -20,9 +20,15 @@ import WarningIcon from '@mui/icons-material/Warning';
 
 interface VerificationResult {
   success: boolean;
-  message: string;
-  data?: Record<string, any>;
-  prompt?: string;
+  file_type: string;
+  page_count: number;
+  ai_response: {
+    document_type: string;
+    document_lang: string;
+    has_english_translation: boolean | null;
+    applicant_name: string;
+    document_details: Record<string, any>;
+  };
 }
 
 interface DocumentVerifierProps {
@@ -67,12 +73,13 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
       setVerificationResult(result);
       
       if (onStatusUpdate) {
-        onStatusUpdate(result.prompt || 'Document processed successfully');
+        const docType = result.ai_response?.document_type || 'document';
+        onStatusUpdate(`Successfully processed ${docType} for ${result.ai_response?.applicant_name || 'applicant'}`);
       }
       
     } catch (err: any) {
       console.error('Error uploading file:', err);
-      const errorMessage = err.response?.data?.message || 'An error occurred while processing your document';
+      const errorMessage = err.response?.data?.detail || 'An error occurred while processing your document';
       setError(errorMessage);
       
       if (onStatusUpdate) {
@@ -115,29 +122,80 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
           sx={{ mb: 3 }}
         >
           <Typography variant="subtitle1" fontWeight="medium">
-            {verificationResult.message}
+            {verificationResult.success ? 'Document processed successfully' : 'Error processing document'}
           </Typography>
         </Alert>
 
-        {verificationResult.data && (
-          <Card variant="outlined" sx={{ mb: 3 }}>
+        <Card variant="outlined" sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Document Information
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Document Type:
+                </Typography>
+                <Typography variant="body1">
+                  {verificationResult.ai_response?.document_type || 'N/A'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Language:
+                </Typography>
+                <Typography variant="body1">
+                  {verificationResult.ai_response?.document_lang || 'N/A'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Applicant Name:
+                </Typography>
+                <Typography variant="body1">
+                  {verificationResult.ai_response?.applicant_name || 'N/A'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">
+                  File Type:
+                </Typography>
+                <Typography variant="body1">
+                  {verificationResult.file_type?.toUpperCase() || 'N/A'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Page Count:
+                </Typography>
+                <Typography variant="body1">
+                  {verificationResult.page_count || 'N/A'}
+                </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {verificationResult.ai_response?.document_details && (
+          <Card variant="outlined">
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Document Details
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              <Grid container spacing={2}>
-                {Object.entries(verificationResult.data).map(([key, value]) => (
-                  <Grid item xs={12} sm={6} key={key}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                {Object.entries(verificationResult.ai_response.document_details).map(([key, value]) => (
+                  <Box key={key}>
                     <Typography variant="subtitle2" color="text.secondary">
-                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                      {key.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}:
                     </Typography>
                     <Typography variant="body1">
-                      {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
+                      {value === null || value === undefined ? 'N/A' : String(value)}
                     </Typography>
-                  </Grid>
+                  </Box>
                 ))}
-              </Grid>
+              </Box>
             </CardContent>
           </Card>
         )}

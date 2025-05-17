@@ -14,7 +14,7 @@ import {
 import MenuIcon from '@mui/icons-material/Menu';
 import Sidebar from './components/Sidebar';
 import DocumentVerifier from './components/DocumentVerifier';
-import HiringExtractor from './components/HiringExtractor';
+import HiringExtractor from "./components/HiringExtractor";
 import StatusBox from './components/StatusBox';
 import { theme } from './theme';
 
@@ -136,7 +136,7 @@ function AppContent() {
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
                   }}
                 >
-                  <DocumentVerifier apiEndpoint="http://localhost:8000/api/upload" />
+                  <DocumentVerifier apiEndpoint="https://3fd5-174-95-254-29.ngrok-free.app/api/v1/verify-immigration-document/" />
                 </Paper>
               }
             />
