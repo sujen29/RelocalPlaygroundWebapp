@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { 
   Box,
@@ -15,13 +15,13 @@ import MenuIcon from '@mui/icons-material/Menu';
 import Sidebar from './components/Sidebar';
 import DocumentVerifier from './components/DocumentVerifier';
 import HiringExtractor from "./components/HiringExtractor";
+import CandidateResumeConverter from './components/CandidateResumeConverter';
 import StatusBox from './components/StatusBox';
 import { theme } from './theme';
 
 function AppContent() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [statusMessage, setStatusMessage] = useState('Ready to verify documents');
   const location = useLocation();
 
   const handleDrawerToggle = () => {
@@ -38,10 +38,6 @@ function AppContent() {
     }
   };
 
-  // Handle status updates from child components
-  const handleStatusUpdate = useCallback((message: string) => {
-    setStatusMessage(message);
-  }, []);
 
   // Get the current page title based on the route
   const getPageTitle = () => {
@@ -50,10 +46,17 @@ function AppContent() {
         return 'Immigration Document Verifier';
       case '/hiring-extractor':
         return 'Hiring Extractor';
+      case '/convert-candidate-resume/':
+        return 'Convert Candidate Resume';
       default:
         return 'Immigration Verification Platform';
     }
   };
+
+  // Construct API endpoints using environment variables
+  const baseApiUrl = import.meta.env.VITE_API_BASE_URL;
+  const documentVerifierApiEndpoint = `${baseApiUrl}api/v1/verify-immigration-document/`;
+  const candidateResumeConverterApiEndpoint = `${baseApiUrl}api/v1/convert-candidate-resume/`;
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -136,7 +139,7 @@ function AppContent() {
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
                   }}
                 >
-                  <DocumentVerifier apiEndpoint="https://relocal-playground-backend.vercel.app/api/v1/verify-immigration-document/" />
+                  <DocumentVerifier apiEndpoint={documentVerifierApiEndpoint} />
                 </Paper>
               }
             />
@@ -151,6 +154,20 @@ function AppContent() {
                   }}
                 >
                   <HiringExtractor apiEndpoint="http://localhost:8000/api/hiring-extract" />
+                </Paper>
+              }
+            />
+            <Route 
+              path="/convert-candidate-resume/"
+              element={
+                <Paper
+                  sx={{
+                    p: 3,
+                    borderRadius: 2,
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                  }}
+                >
+                  <CandidateResumeConverter apiEndpoint={candidateResumeConverterApiEndpoint} />
                 </Paper>
               }
             />

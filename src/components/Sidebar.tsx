@@ -18,8 +18,8 @@ import {
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import WorkIcon from '@mui/icons-material/Work';
+import EditNoteIcon from '@mui/icons-material/EditNote';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import MenuIcon from '@mui/icons-material/Menu';
 
 const drawerWidth = 240;
 
@@ -61,6 +61,7 @@ interface SidebarProps {
 const menuItems = [
   { text: 'Immigration Document Verifier', icon: <DescriptionIcon />, path: '/' },
   { text: 'Hiring Extractor', icon: <WorkIcon />, path: '/hiring-extractor' },
+  { text: 'Convert Candidate Resume', icon: <EditNoteIcon />, path: '/convert-candidate-resume/' },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ 
