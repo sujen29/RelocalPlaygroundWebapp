@@ -9,32 +9,36 @@ import {
   Button,
   Alert,
   Divider,
-  Grid,
-  Card,
-  CardContent
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import DescriptionIcon from '@mui/icons-material/Description';
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import VerifiedIcon from '@mui/icons-material/Verified';
-import WarningIcon from '@mui/icons-material/Warning';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 // Interface for the API response (assuming it's the same as DocumentVerifier)
+interface FileData {
+  data: Blob | null;
+  filename: string;
+}
+
 interface ConversionResult {
   success: boolean;
-  file_type: string;
-  page_count: number;
+  filename?: string;
+  fileType?: string;
+  // Keeping the old interface for backward compatibility
+  file_type?: string;
+  page_count?: number;
   is_valid?: boolean;
   validity_reason?: string | Record<string, any>;
   prompt?: string;
-  ai_response: {
-    document_type: string; // This might be 'resume' or similar
-    document_lang: string;
-    has_english_translation: boolean | null;
-    applicant_name: string;
-    document_details: Record<string, any>; // Resume specific details
-    is_valid?: boolean; // Or perhaps 'is_parsable'
+  ai_response?: {
+    document_type?: string;
+    document_lang?: string;
+    has_english_translation?: boolean | null;
+    applicant_name?: string;
+    document_details?: Record<string, any>;
+    is_valid?: boolean;
     validity_reason?: string | Record<string, any>;
   };
 }
@@ -50,7 +54,7 @@ const CandidateResumeConverter: React.FC<CandidateResumeConverterProps> = ({ api
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showRawJson, setShowRawJson] = useState<boolean>(false);
-  const [showPromptData, setShowPromptData] = useState<boolean>(false); // If applicable
+  const [fileData, setFileData] = useState<FileData>({ data: null, filename: '' });
   const [rawResponse, setRawResponse] = useState<any>(null);
 
   const formatPromptText = (text: string) => {
@@ -100,6 +104,19 @@ const CandidateResumeConverter: React.FC<CandidateResumeConverterProps> = ({ api
     await handleUpload(file);
   }, [apiEndpoint, onStatusUpdate]);
 
+  const handleDownload = () => {
+    if (!fileData.data) return;
+    
+    const url = window.URL.createObjectURL(fileData.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileData.filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleUpload = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -113,35 +130,54 @@ const CandidateResumeConverter: React.FC<CandidateResumeConverterProps> = ({ api
     }
 
     try {
-      const response = await axios.post(apiEndpoint, formData, {
+      const response = await axios({
+        method: 'POST',
+        url: apiEndpoint,
+        data: formData,
+        responseType: 'blob',
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       
-      const result: ConversionResult = response.data;
-      setRawResponse(result);
-      console.log('Full API Response (CandidateResumeConverter):', { rawResponse: response, data: result });
+      // Get filename from content-disposition header or use default
+      const contentDisposition = response.headers['content-disposition'] || '';
+      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      const filename = filenameMatch ? filenameMatch[1].replace(/['"]/g, '') : 'converted-resume.docx';
       
-      const shouldShowSuccess = result.success || (result.ai_response && Object.keys(result.ai_response).length > 0);
+      // Store file data for download
+      setFileData({
+        data: response.data,
+        filename: filename
+      });
       
-      if (!shouldShowSuccess) {
-        throw new Error('No valid data received from the server');
-      }
-      
-      setConversionResult(result);
+      // Update UI state
+      setConversionResult({
+        success: true,
+        filename: filename,
+        fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      });
       
       if (onStatusUpdate) {
-        const docType = result.ai_response?.document_type || 'resume';
-        const statusMessage = result.success 
-          ? `Successfully processed ${docType} for ${result.ai_response?.applicant_name || 'applicant'}`
-          : `Warning: Resume processing issues (${docType})`;
-        onStatusUpdate(statusMessage);
+        onStatusUpdate('Resume processed successfully. Ready to download.');
       }
       
     } catch (err: any) {
-      console.error('Error uploading file:', err);
-      const errorMessage = err.response?.data?.detail || 'An error occurred while processing your resume';
+      console.error('Error processing file:', err);
+      let errorMessage = 'An error occurred while processing your resume';
+      
+      // Try to parse error response if it's JSON
+      if (err.response?.data) {
+        try {
+          const errorText = await new Response(err.response.data).text();
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.detail || errorMessage;
+        } catch (e) {
+          // If not JSON, use default error message
+          console.error('Error parsing error response:', e);
+        }
+      }
+      
       setError(errorMessage);
       
       if (onStatusUpdate) {
@@ -169,6 +205,7 @@ const CandidateResumeConverter: React.FC<CandidateResumeConverterProps> = ({ api
     setSelectedFile(null);
     setConversionResult(null);
     setError(null);
+    setFileData({ data: null, filename: '' });
     if (onStatusUpdate) {
       onStatusUpdate('Ready to convert candidate resume');
     }
@@ -177,104 +214,66 @@ const CandidateResumeConverter: React.FC<CandidateResumeConverterProps> = ({ api
   const renderConversionResults = () => {
     if (!conversionResult) return null;
 
-    // Customize this section based on the actual structure of resume conversion results
     return (
       <Box sx={{ mt: 3 }}>
         <Alert
-          severity={conversionResult.success ? 'success' : 'warning'}
-          icon={conversionResult.success ? <VerifiedIcon /> : <WarningIcon />}
+          severity="success"
+          icon={<VerifiedIcon />}
           sx={{ mb: 3 }}
         >
           <Box>
-            <Typography variant="subtitle1" fontWeight="medium">
-              {conversionResult.success 
-                ? 'Resume Processed Successfully' 
-                : conversionResult.ai_response 
-                  ? 'Resume Processing Issues' 
-                  : 'Error processing resume'}
+            <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+              Resume Processed Successfully
             </Typography>
-            {(conversionResult.validity_reason || conversionResult.ai_response?.validity_reason) && (
-              <Box sx={{ mt: 1, fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
-                {JSON.stringify(
-                  conversionResult.validity_reason || 
-                  conversionResult.ai_response?.validity_reason, 
-                  null, 
-                  2
-                )}
-              </Box>
-            )}
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Your resume has been processed and is ready to download.
+            </Typography>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<CloudDownloadIcon />}
+              onClick={handleDownload}
+              disabled={!fileData.data}
+              sx={{ mt: 1 }}
+            >
+              Download Converted Resume
+            </Button>
           </Box>
         </Alert>
 
-        <Card variant="outlined" sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Resume Details
-            </Typography>
+        {/* Show additional details if available */}
+        {conversionResult.ai_response?.document_details && (
+          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h6" gutterBottom>Document Details</Typography>
             <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Applicant Name:
-                </Typography>
-                <Typography variant="body1">
-                  {conversionResult.ai_response?.applicant_name || 'N/A'}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Detected Language:
-                </Typography>
-                <Typography variant="body1">
-                  {conversionResult.ai_response?.document_lang || 'N/A'}
-                </Typography>
-              </Box>
-              {/* Add more fields from ai_response.document_details as needed */}
-              {Object.entries(conversionResult.ai_response?.document_details || {}).map(([key, value]) => (
-                <Box key={key}>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                    {key.replace(/_/g, ' ')}:
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              {Object.entries(conversionResult.ai_response.document_details).map(([key, value]) => (
+                <Box key={key} sx={{ flex: '1 1 300px' }}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    {key.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}:
                   </Typography>
-                  <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  <Typography variant="body1">
                     {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
                   </Typography>
                 </Box>
               ))}
             </Box>
-          </CardContent>
-        </Card>
-        
-        {conversionResult.prompt && (
-          <Box sx={{ mb: 3 }}>
-            <Button 
-              onClick={() => setShowPromptData(!showPromptData)} 
-              variant="outlined" 
-              size="small"
-              endIcon={showPromptData ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              sx={{ textTransform: 'none', mb: 1 }}
-            >
-              {showPromptData ? 'Hide Prompt Data' : 'Show Prompt Data'}
-            </Button>
-            {showPromptData && (
-              <Paper elevation={2} sx={{ p: 2, backgroundColor: 'grey.100' }}>
-                <Typography variant="h6" gutterBottom>Prompt Data</Typography>
-                {formatPromptText(conversionResult.prompt)}
-              </Paper>
-            )}
-          </Box>
+          </Paper>
         )}
-
+        
+        {/* Toggle for raw JSON response */}
         <Button 
           onClick={() => setShowRawJson(!showRawJson)} 
-          variant="outlined" 
+          variant="text"
           size="small"
           endIcon={showRawJson ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          sx={{ textTransform: 'none' }}
+          sx={{ textTransform: 'none', mt: 2 }}
         >
-          {showRawJson ? 'Hide Raw JSON Response' : 'Show Raw JSON Response'}
+          {showRawJson ? 'Hide Debug Information' : 'Show Debug Information'}
         </Button>
         {showRawJson && conversionResult && (
           <Paper elevation={2} sx={{ mt: 1, p: 2, backgroundColor: 'grey.100' }}>
+            <Typography variant="subtitle2" gutterBottom>Response Metadata:</Typography>
             <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'monospace'}}>
               {JSON.stringify(conversionResult.ai_response, null, 2)}
             </Typography>
@@ -341,7 +340,7 @@ const CandidateResumeConverter: React.FC<CandidateResumeConverterProps> = ({ api
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <DescriptionIcon sx={{ mr: 1.5, color: 'primary.main' }} />
+              <CloudUploadIcon sx={{ mr: 1.5, color: 'primary.main' }} />
               <Typography variant="body1">{selectedFile.name}</Typography>
             </Box>
             <Button variant="outlined" color="error" onClick={handleRemoveFile} size="small">
