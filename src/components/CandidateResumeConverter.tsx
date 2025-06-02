@@ -142,8 +142,33 @@ const CandidateResumeConverter: React.FC<CandidateResumeConverterProps> = ({ api
       
       // Get filename from content-disposition header or use default
       const contentDisposition = response.headers['content-disposition'] || '';
-      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      const filename = filenameMatch ? filenameMatch[1].replace(/['"]/g, '') : 'converted-resume.docx';
+      let filename = 'converted-resume.docx'; // Default filename
+
+      // Try to parse filename* (RFC 5987) which handles UTF-8 encoding and URL-encoded characters
+      // Regex captures: 1: charset, 2: language, 3: encoded filename
+      const rfc5987Match = contentDisposition.match(/filename\*\s*=\s*([^']*)'([^']*)'([^;]+)/i);
+      
+      if (rfc5987Match && typeof rfc5987Match[3] === 'string') {
+        try {
+          filename = decodeURIComponent(rfc5987Match[3]);
+        } catch (e) {
+          console.error('Error decoding RFC 5987 filename:', e, rfc5987Match[3]);
+          // Fallback to default if decoding fails catastrophically
+        }
+      } else {
+        // Fallback to simpler filename= (handles quoted and unquoted)
+        const simpleFilenameMatch = contentDisposition.match(/filename\s*=\s*(?:"([^"]+)"|([^;]+))/i);
+        if (simpleFilenameMatch) {
+          // Prioritize quoted filename (group 1 of this regex), then unquoted (group 2)
+          const matchedName = simpleFilenameMatch[1] || simpleFilenameMatch[2];
+          if (typeof matchedName === 'string') {
+            filename = matchedName.replace(/^['"\s]+|['"\s]+$/g, ''); // Trim quotes and whitespace
+          }
+        }
+      }
+
+      // Basic sanitization: remove any path components just in case
+      filename = filename.split('/').pop()?.split('\\').pop() || filename;
       
       // Store file data for download
       setFileData({
