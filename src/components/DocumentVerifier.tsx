@@ -201,29 +201,29 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
   const renderVerificationResults = () => {
     if (!verificationResult) return null;
 
+    const isDocumentValid = verificationResult.success && verificationResult.ai_response?.is_valid === true;
+    const validityReason = verificationResult.validity_reason || verificationResult.ai_response?.validity_reason;
+
     return (
       <Box sx={{ mt: 3 }}>
         <Alert
-          severity={verificationResult.success ? 'success' : 'warning'}
-          icon={verificationResult.success ? <VerifiedIcon /> : <WarningIcon />}
+          severity={isDocumentValid ? 'success' : 'warning'}
+          icon={isDocumentValid ? <VerifiedIcon /> : <WarningIcon />}
           sx={{ mb: 3 }}
         >
           <Box>
             <Typography variant="subtitle1" fontWeight="medium">
-              {verificationResult.success 
-                ? 'Valid Document' 
-                : verificationResult.ai_response 
-                  ? 'Document is not valid' 
+              {isDocumentValid
+                ? 'Valid Document'
+                : verificationResult.ai_response
+                  ? 'Document is not valid'
                   : 'Error processing document'}
             </Typography>
-            {(verificationResult.validity_reason || verificationResult.ai_response?.validity_reason) && (
+            {validityReason && (
               <Box sx={{ mt: 1, fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
-                {JSON.stringify(
-                  verificationResult.validity_reason || 
-                  verificationResult.ai_response?.validity_reason, 
-                  null, 
-                  2
-                )}
+                {typeof validityReason === 'string'
+                  ? validityReason
+                  : JSON.stringify(validityReason, null, 2)}
               </Box>
             )}
           </Box>
