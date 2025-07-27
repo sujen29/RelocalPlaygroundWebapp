@@ -52,6 +52,7 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
   const [showRawJson, setShowRawJson] = useState<boolean>(false);
   const [showPromptData, setShowPromptData] = useState<boolean>(false);
   const [rawResponse, setRawResponse] = useState<any>(null);
+  const [showResponseFields, setShowResponseFields] = useState<boolean>(false);
   
   // Format the prompt text with proper line breaks and formatting
   const formatPromptText = (text: string) => {
@@ -147,6 +148,7 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
       
       // If we get here, we have data to show
       setVerificationResult(result);
+      console.log('Verification Result:', result);
       
       if (onStatusUpdate) {
         const docType = result.ai_response?.document_type || 'document';
@@ -155,7 +157,7 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
           : `Warning: Document is not valid (${docType})`;
         
         // Include the full prompt JSON in the status message for debugging
-        const promptInfo = result.ai_response?.prompt ? 
+        const promptInfo = result.prompt ? 
           `\n\nPrompt JSON:\n${JSON.stringify(result.prompt, null, 2)}` : 
           '';
           
@@ -466,7 +468,7 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
               >
                 {showRawJson ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                 <Typography variant="h6" ml={1}>
-                  Raw JSON Response (Debug)
+                  Raw AI Response (Debug)
                 </Typography>
               </Box>
               {showRawJson && (
@@ -494,6 +496,53 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
                       if (value === '') return '(empty string)';
                       return value;
                     },
+                    2
+                  )}
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {verificationResult && (
+          <Card variant="outlined" sx={{ mt: 3 }}>
+            <CardContent>
+              <Box 
+                onClick={() => setShowResponseFields(!showResponseFields)}
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  cursor: 'pointer',
+                  '&:hover': { color: 'primary.main' }
+                }}
+              >
+                {showResponseFields ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                <Typography variant="h6" ml={1}>
+                  Response Fields (Debug)
+                </Typography>
+              </Box>
+              {showResponseFields && (
+                <Box 
+                  sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    bgcolor: 'background.paper', 
+                    borderRadius: 1,
+                    maxHeight: '400px',
+                    overflow: 'auto',
+                    fontFamily: 'monospace',
+                    fontSize: '0.8rem',
+                    whiteSpace: 'pre-wrap',
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}
+                >
+                  {JSON.stringify(
+                    (() => {
+                      const { ai_response, ...rest } = verificationResult;
+                      return rest;
+                    })(),
+                    null,
                     2
                   )}
                 </Box>
