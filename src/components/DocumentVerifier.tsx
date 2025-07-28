@@ -518,7 +518,7 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
               >
                 {showResponseFields ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                 <Typography variant="h6" ml={1}>
-                  Response Fields (Debug)
+                  Other Response Fields (Debug)
                 </Typography>
               </Box>
               {showResponseFields && (
@@ -539,7 +539,7 @@ const DocumentVerifier: React.FC<DocumentVerifierProps> = ({ apiEndpoint, onStat
                 >
                   {JSON.stringify(
                     (() => {
-                      const { ai_response, ...rest } = verificationResult;
+                      const { ai_response, prompt, ...rest } = verificationResult;
                       return rest;
                     })(),
                     null,
