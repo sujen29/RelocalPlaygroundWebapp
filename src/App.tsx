@@ -12,7 +12,7 @@ import {
   ThemeProvider
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import Sidebar from './components/Sidebar';
+// import Sidebar from './components/Sidebar';
 import DocumentVerifier from './components/DocumentVerifier';
 import HiringExtractor from "./components/HiringExtractor";
 import CandidateResumeConverter from './components/CandidateResumeConverter';
@@ -21,7 +21,8 @@ import { theme } from './theme';
 
 function AppContent() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Temporarily hide the sidebar
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
 
   const handleDrawerToggle = () => {
@@ -43,6 +44,8 @@ function AppContent() {
   const getPageTitle = () => {
     switch (location.pathname) {
       case '/':
+        return 'Welcome';
+      case '/verify-immigration-document':
         return 'Immigration Document Verifier';
       case '/hiring-extractor':
         return 'Hiring Extractor';
@@ -63,20 +66,15 @@ function AppContent() {
       <AppBar
         position="fixed"
         sx={{
-          width: { sm: `calc(100% - ${isSidebarOpen ? 240 : 73}px)` },
-          ml: { sm: `${isSidebarOpen ? 240 : 73}px` },
-          transition: (theme) =>
-            theme.transitions.create(['margin', 'width'], {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.leavingScreen,
-            }),
+          width: '100%',
+          ml: 0,
           zIndex: (theme) => theme.zIndex.drawer + 1,
           backgroundColor: theme.palette.primary.main,
           boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
         }}
       >
         <Toolbar>
-          <IconButton
+          {/* <IconButton
             color="inherit"
             edge="start"
             onClick={handleSidebarToggle}
@@ -88,7 +86,7 @@ function AppContent() {
             }}
           >
             <MenuIcon />
-          </IconButton>
+          </IconButton> */}
           <Typography
             variant="h6"
             component="div"
@@ -103,26 +101,21 @@ function AppContent() {
         </Toolbar>
       </AppBar>
 
-      <Sidebar
+      {/* <Sidebar
         open={isSidebarOpen}
         onToggle={handleSidebarToggle}
         mobileOpen={mobileOpen}
         onMobileToggle={handleDrawerToggle}
-      />
+      /> */}
 
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { sm: `calc(100% - ${isSidebarOpen ? 240 : 0}px)` },
-          ml: { sm: `${isSidebarOpen ? 240 : 0}px` },
+          width: '100%',
+          ml: 0,
           mt: '64px',
-          transition: (theme) =>
-            theme.transitions.create(['margin', 'width'], {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.leavingScreen,
-            }),
           backgroundColor: theme.palette.background.default,
           minHeight: 'calc(100vh - 64px)',
         }}
@@ -131,6 +124,19 @@ function AppContent() {
           <Routes>
             <Route
               path="/"
+              element={
+                <Box sx={{ textAlign: 'center', mt: 8 }}>
+                  <Typography variant="h4" gutterBottom>
+                    {/* Welcome to the platform */}
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary">
+                    {/* Select a tool from the sidebar to get started. */}
+                  </Typography>
+                </Box>
+              }
+            />
+            <Route
+              path="/verify-immigration-document"
               element={
                 <Paper
                   sx={{
